@@ -5,3 +5,7 @@ authors = ["::::::::::::::: <sergystepanov@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+# a network server
+actix-web = "2.0.0"
+actix-rt = "1.0.0"
+env_logger = "0.7"
