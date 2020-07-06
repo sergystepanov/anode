@@ -1,3 +1,3 @@
-import ajax from './network/ajax';
+import Socket from './network/socket';
 
-ajax.fetch('https://ya.ru');
+const ws = new Socket('ws://127.0.0.1');

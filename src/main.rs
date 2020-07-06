@@ -22,6 +22,7 @@ async fn main() -> std::io::Result<()> {
             // resolved in the order they are defined. If this would be placed before the `/images`
             // path then the service for the static images would never be reached.
             .service(Files::new("/", "./static/root/").index_file("index.html"))
+        // .route("/ws/", web::get().to(index)))
     })
     .bind("127.0.0.1:8080")?
     .run()
