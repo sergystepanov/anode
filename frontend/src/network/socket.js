@@ -3,23 +3,41 @@
  *
  * @version 1
  */
-export default class Socket {
-  constructor(address = '') {
-    console.info(`[socket] connecting to [${address}]`);
+export default function socket(address = '') {
+  const messages = [];
+  let opened = false;
 
-    try {
-      const connection = new WebSocket(address);
+  console.info(`[socket] connecting to [${address}]`);
 
-      connection.onopen = () => {
-        console.info('[socket] connection open');
-      };
-      connection.onerror = (error) => console.error(`[socket] ${error}`);
-      connection.onclose = () => console.info('[socket] closed');
-      connection.onmessage = (response) => {
-        console.log(response);
-      };
-    } catch (e) {
-      console.error(`[socket] can't connect to [${address}]`);
+  const connection = new WebSocket(address);
+  connection.bufferType = 'arraybuffer';
+
+  connection.onopen = () => {
+    console.info('[socket] connection open');
+    opened = true;
+
+    console.info(`[socket] there are ${messages.length} messages in queue`);
+
+    let message;
+    while ((message = messages.pop())) {
+      connection.send(message);
     }
-  }
+  };
+  connection.onerror = (error) => console.error(`[socket] ${error}`);
+  connection.onclose = () => console.info('[socket] closed');
+  connection.onmessage = (response) => {
+    console.log(response);
+  };
+
+  const send = (text) => {
+    if (!opened) {
+      messages.push(text);
+    } else {
+      connection.send(text);
+    }
+  };
+
+  return {
+    send,
+  };
 }
