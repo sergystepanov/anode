@@ -1,4 +1,7 @@
 import Socket from './network/socket';
+import Video from './media/video';
+
+const root = document.getElementById('root');
 
 const address =
   ((window.location.protocol == 'https:' && 'wss://') || 'ws://') + window.location.host + '/ws/';
@@ -15,3 +18,6 @@ let view = new Uint32Array(buffer);
 view[0] = 123456;
 
 ws.send(view);
+
+const vid = Video();
+root.append(vid.render());
