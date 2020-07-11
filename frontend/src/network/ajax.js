@@ -1,10 +1,7 @@
 /**
  * AJAX request module.
- * @version 1
  */
-const defaultTimeout = 10000;
-
-export function _fetch(url, options, timeout = defaultTimeout) {
+export default function (url, options, timeout = 10000) {
   return new Promise((resolve, reject) => {
     const controller = new AbortController();
     const signal = controller.signal;

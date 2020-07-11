@@ -10,7 +10,13 @@
  * conn.send('test');
  *
  */
-export default function socket(address = '') {
+export default function (
+  address = '',
+  onOpen = () => {},
+  onMessage = () => {},
+  onError = (error) => {},
+  onClose = () => {}
+) {
   const messages = [];
 
   console.info(`[socket] connecting to [${address}]`);
@@ -26,11 +32,19 @@ export default function socket(address = '') {
     while ((message = messages.pop())) {
       conn.send(message);
     }
+    onOpen();
   };
-  conn.onerror = (error) => console.error(`[socket] ${error}`);
-  conn.onclose = () => console.info('[socket] closed');
+  conn.onerror = (error) => {
+    console.error(`[socket] ${error}`);
+    onError(error);
+  };
+  conn.onclose = () => {
+    console.info('[socket] closed');
+    onClose();
+  };
   conn.onmessage = (response) => {
     console.log(response);
+    onMessage(response);
   };
 
   /**
@@ -45,9 +59,10 @@ export default function socket(address = '') {
     }
   };
 
-  return {
+  return Object.freeze({
+    conn,
     send,
-  };
+  });
 }
 
 // socket states
