@@ -21,7 +21,15 @@ export default function video() {
     return el;
   };
 
+  const reset = () => {
+    el.pause();
+    el.src = '';
+    el.load();
+  };
+
   return {
     render,
+    get: el,
+    reset,
   };
 }

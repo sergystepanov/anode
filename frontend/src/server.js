@@ -1,14 +1,14 @@
 import { event_ as events, EVENT_ERROR } from './event/event';
 import socket_ from './network/socket';
+import rtc from './network/rtc';
 
-// The default constraints that will be attempted. Can be overridden by the user.
-var default_constraints = { video: true, audio: true };
 // Set this to use a specific peer id instead of a random one
-var default_peer_id;
+var default_peer_id = 6088;
 // Set this to override the automatic detection in websocketServerConnect()
 var ws_server;
 var ws_port;
 var ws_conn;
+var peer_connection;
 
 /**
  * Server module.
@@ -34,8 +34,6 @@ export default function (
       return;
     }
 
-    // connection constraints
-    const constraints = JSON.stringify(default_constraints);
     // get connection id
     const peer_id = default_peer_id || genId();
     ws_port = ws_port || '8443';
@@ -90,47 +88,127 @@ function setStatus(text) {
 
 function onServerError() {
   setError('Unable to connect to server, did you add an exception for the certificate?');
-  // Retry after 3 seconds
-  // window.setTimeout(websocketServerConnect, 3000);
+}
+
+function onLocalDescription_(connection, desc) {
+  // Local description was set, send it to peer
+  console.log(`Got local description: ${JSON.stringify(desc)}`);
+
+  connection.setLocalDescription(desc).then(function () {
+    setStatus(`Sending SDP ${desc.type}`);
+    sdp = { sdp: connection.localDescription };
+    ws_conn.send(JSON.stringify(sdp));
+  });
 }
 
 function onServerMessage(event) {
-  console.log('Received ' + event.data);
   switch (event.data) {
     case 'HELLO':
       setStatus('Registered with server, waiting for call');
       return;
     default:
-    // if (event.data && event.data.startsWith('ERROR')) {
-    //   handleIncomingError(event.data);
-    //   return;
-    // }
-    // if (event.data && event.data.startsWith('OFFER_REQUEST')) {
-    //   // The peer wants us to set up and then send an offer
-    //   if (!peer_connection) createCall(null).then(generateOffer);
-    // } else {
-    // Handle incoming JSON SDP and ICE messages
-    // try {
-    //   msg = JSON.parse(event.data);
-    // } catch (e) {
-    //   if (e instanceof SyntaxError) {
-    //     handleIncomingError('Error parsing incoming JSON: ' + event.data);
-    //   } else {
-    //     handleIncomingError('Unknown error parsing response: ' + event.data);
-    //   }
-    //   return;
-    // }
-    // // Incoming JSON signals the beginning of a call
-    // if (!peer_connection) createCall(msg);
-    // if (msg.sdp != null) {
-    //   onIncomingSDP(msg.sdp);
-    // } else if (msg.ice != null) {
-    //   onIncomingICE(msg.ice);
-    // } else {
-    //   handleIncomingError('Unknown incoming JSON: ' + msg);
-    // }
-    // }
+      if (event.data === undefined) return;
+
+      const isString = Object.prototype.toString.call(event.data) === '[object String]';
+
+      if (isString && event.data.startsWith('ERROR')) {
+        handleIncomingError(event.data);
+        return;
+      }
+
+      const rtc_ = rtc(
+        (event) => {
+          ws_conn.send(JSON.stringify({ ice: event.candidate }));
+        },
+        (event) => {
+          if (getVideoElement().srcObject !== event.streams[0]) {
+            console.log('Incoming stream');
+            getVideoElement().srcObject = event.streams[0];
+          }
+        }
+      );
+
+      if (isString && event.data.startsWith('OFFER_REQUEST')) {
+        // The peer wants us to set up and then send an offer
+        if (!peer_connection) {
+          rtc_.createCall(null).then(() => {
+            peer_connection = rtc_.peerConnection;
+            rtc_.offer(
+              (desc) => {
+                onLocalDescription_(peer_connection, desc);
+              },
+              (err) => {
+                setError(err);
+              }
+            );
+          });
+        }
+      } else {
+        let msg;
+        //Handle incoming JSON SDP and ICE messages
+        try {
+          msg = JSON.parse(event.data);
+        } catch (e) {
+          handleIncomingError(
+            e instanceof SyntaxError
+              ? `Error parsing incoming JSON: ${event.data}`
+              : `Unknown error parsing response: ${event.data}`
+          );
+          return;
+        }
+
+        // Incoming JSON signals the beginning of a call
+        if (!peer_connection) {
+          rtc_.createCall(msg);
+          peer_connection = rtc_.peerConnection;
+
+          if (msg.sdp != null) {
+            onIncomingSDP(peer_connection, msg.sdp, rtc_.localStreamPromise);
+          } else if (msg.ice != null) {
+            onIncomingICE(msg.ice, rtc_.peerConnection);
+          } else {
+            handleIncomingError(`Unknown incoming JSON: ${msg}`);
+          }
+        }
+      }
   }
+}
+
+// SDP offer received from peer, set remote description and create an answer
+function onIncomingSDP(connection, sdp, localStreamPromise, onLocalDescription) {
+  connection
+    .setRemoteDescription(sdp)
+    .then(() => {
+      setStatus('Remote SDP set');
+      if (sdp.type != 'offer') return;
+      setStatus('Got SDP offer');
+      localStreamPromise
+        .then((stream) => {
+          setStatus('Got local stream, creating answer');
+          connection
+            .createAnswer()
+            .then((desc) => {
+              onLocalDescription_(peer_connection, desc);
+            })
+            .catch(setError);
+        })
+        .catch(setError);
+    })
+    .catch(setError);
+}
+
+// ICE candidate received from peer, add it to the peer connection
+function onIncomingICE(ice, connection) {
+  connection.addIceCandidate(new RTCIceCandidate(ice)).catch(setError);
+}
+
+function handleIncomingError(error) {
+  setError('ERROR: ' + error);
+  ws_conn.close();
+}
+
+function setError(text) {
+  console.error(text);
 }
 
 function onServerClose() {
@@ -141,7 +219,4 @@ function onServerClose() {
   //   peer_connection.close();
   //   peer_connection = null;
   // }
-
-  // // Reset after a second
-  // window.setTimeout(websocketServerConnect, 1000);
 }
