@@ -13,3 +13,7 @@ Frontend:
 ```shell
 npm start --prefix frontend watch
 ```
+
+### Issues
+
+Firefox `localhost` address won't allow to exchange ICE candidates, use `127.0.0.1` instead.
