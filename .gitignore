@@ -17,6 +17,8 @@
 # frontend
 frontend/node_modules/
 frontend/.cache/
+frontend/coverage/
+frontend/.parcel-cache/
 frontend/dist/
 
 static/root/
