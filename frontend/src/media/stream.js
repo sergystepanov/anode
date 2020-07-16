@@ -51,6 +51,11 @@ export default function (
   };
 
   /**
+   * @returns {HTMLVideoElement} An internal HTML5 video element if it is rendered.
+   */
+  const get = () => el,
+
+  /**
    * Resets (reloads) internal HTML5 video element.
    */
   const reset = () => {
@@ -59,11 +64,11 @@ export default function (
     el.srcObject = undefined;
     el.load();
   };
-
+ 
   /**
-   * Attaches next stream source.
-   *
-   * @param {*} stream
+   * Attaches stream source to the internal HTML5 video element.
+   * 
+   * @param {MediaStream} stream A stream source to attach.
    */
   const addSource = (stream) => {
     if (el.srcObject === stream) return;
@@ -72,10 +77,10 @@ export default function (
     el.srcObject = stream;
   };
 
-  return {
+  return Object.freeze({
     addSource,
-    get: () => el,
+    get,
     render,
     reset,
-  };
+  });
 }
