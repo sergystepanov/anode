@@ -4,11 +4,11 @@
   "description": "A frontend for anode app",
   "main": "index.js",
   "scripts": {
-    "start": "parcel serve src/index.html",
-    "start2": "parcel src/index2.html --open ",
-    "build": "parcel build src/index.html -d ../static/root",
+    "start": "parcel serve ./src/index.html --log-level 4",
+    "start2": "parcel serve ./src/index2.html --open ",
+    "build": "parcel build ./src/index.html -d ../static/root",
     "test": "jest --watch",
-    "watch": "parcel watch src/index.html -d ../static/root"
+    "watch": "parcel watch ./src/index.html -d ../static/root"
   },
   "author": "::::::::::::::: <sergystepanov@gmail.com>",
   "license": "Apache-2.0",
@@ -17,9 +17,15 @@
     "@babel/preset-env": "^7.10.4",
     "babel-jest": "^26.1.0",
     "jest": "^26.1.0",
-    "parcel": "^2.0.0-nightly.338"
+    "parcel": "next"
   },
   "dependencies": {
     "webrtc-adapter": "^7.6.3"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "\\.(css|less|sass|scss)$": "<rootDir>/__mocks__/styleMock.js",
+      "\\.(gif|ttf|eot|svg)$": "<rootDir>/__mocks__/fileMock.js"
+    }
   }
 }
