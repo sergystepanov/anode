@@ -20,7 +20,7 @@ export default function (
     controls: true,
     muted: false,
     preload: 'none',
-    volume: '0.2',
+    volume: 0.1,
   }
 ) {
   let el;
@@ -35,7 +35,10 @@ export default function (
       if (value === undefined) return;
 
       let setValue;
-      if (typeof opts[key] === 'boolean') {
+      if (key === 'volume') {
+        el.volume = value;
+        return;
+      } else if (typeof opts[key] === 'boolean') {
         setValue = value === true ? '' : value;
       } else {
         setValue = value;
@@ -53,7 +56,7 @@ export default function (
   /**
    * @returns {HTMLVideoElement} An internal HTML5 video element if it is rendered.
    */
-  const get = () => el,
+  const get = () => el;
 
   /**
    * Resets (reloads) internal HTML5 video element.
@@ -64,16 +67,16 @@ export default function (
     el.srcObject = undefined;
     el.load();
   };
- 
+
   /**
    * Attaches stream source to the internal HTML5 video element.
-   * 
+   *
    * @param {MediaStream} stream A stream source to attach.
    */
   const addSource = (stream) => {
     if (el.srcObject === stream) return;
 
-    console.info(`[video] adding stream`);
+    // console.info(`[video] adding stream`);
     el.srcObject = stream;
   };
 

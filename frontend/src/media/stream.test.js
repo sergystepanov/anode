@@ -33,9 +33,10 @@ test('if stream is cleared', () => {
 test('if custom video options are set', () => {
   const vv = Stream({
     ignore: undefined,
-    volume: 100,
+    volume: 0.5,
   });
+
   vv.render();
   expect(vv.get().getAttribute('ignore')).toBe(null);
-  expect(vv.get().getAttribute('volume')).toBe('100');
+  expect(vv.get().volume).toBe(0.5);
 });

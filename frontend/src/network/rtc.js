@@ -7,7 +7,8 @@ const rtc_configuration = Object.freeze({
 // The default constraints that will be attempted. Can be overridden by the user.
 var default_constraints = { video: true, audio: true };
 // connection constraints
-const constraints = JSON.stringify(default_constraints);
+const constraints = default_constraints;
+//JSON.stringify(default_constraints);
 
 export default function (onIceCandidate = (event) => {}, onRemoteTrack = (event) => {}) {
   let connection;
@@ -19,7 +20,7 @@ export default function (onIceCandidate = (event) => {}, onRemoteTrack = (event)
     // connect_attempts = 0;
 
     connection = new RTCPeerConnection(rtc_configuration);
-    // send_channel = connection.createDataChannel('label', null);
+    let send_channel = connection.createDataChannel('label', null);
     // send_channel.onopen = handleDataChannelOpen;
     // send_channel.onmessage = handleDataChannelMessageReceived;
     // send_channel.onerror = handleDataChannelError;
@@ -79,7 +80,7 @@ export default function (onIceCandidate = (event) => {}, onRemoteTrack = (event)
   return Object.freeze({
     createCall,
     offer,
-    localStreamPromise: local_stream_promise,
-    peerConnection: connection,
+    localStreamPromise: () => local_stream_promise,
+    peerConnection: () => connection,
   });
 }
