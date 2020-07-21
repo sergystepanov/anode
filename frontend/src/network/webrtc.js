@@ -12,7 +12,7 @@
  * const w = WebRTC();
  *
  */
-export default function (
+export default function webrtc(
   opts = {
     rtc: {
       iceServers: [
@@ -34,5 +34,16 @@ export default function (
   return {
     connect,
     getConnection,
+  };
+}
+
+export function builder() {
+  return {
+    withSignaling: function () {
+      return this;
+    },
+    build: function () {
+      return webrtc();
+    },
   };
 }

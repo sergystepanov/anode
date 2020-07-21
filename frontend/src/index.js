@@ -2,6 +2,7 @@ import { init, websocketServerConnect } from './webrtc';
 import adapter from 'webrtc-adapter';
 
 import Stream from './media/stream';
+import { builder as WebRTC } from './network/webrtc';
 
 function main() {
   console.info(
@@ -12,7 +13,9 @@ function main() {
   const vEl = document.getElementById('player');
   vEl.append(vid.render());
 
-  init(vid);
+  const rtc = WebRTC().withSignaling().build();
+
+  init(vid, rtc);
   websocketServerConnect();
 }
 

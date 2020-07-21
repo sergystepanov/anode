@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "anode-web",
   "version": "1.0.0",
   "description": "A frontend for anode app",
   "main": "index.js",
