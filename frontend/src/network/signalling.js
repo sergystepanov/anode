@@ -1,3 +1,5 @@
+import ws from './socket';
+
 /**
  * Webrtc signalling module builder.
  *
@@ -55,14 +57,6 @@ export default function signallingBuilder({ factory = websocketSignaling } = {})
   };
 }
 
-/**
- * @typedef {Object} SignallingMod
- * @param {function} connect
- * @param {function} close
- * @param {function} getUrl
- * @param {function} send
- */
-
 function websocketSignaling({
   url = getDefaultWebsocketAddress(),
   onConnect,
@@ -79,14 +73,16 @@ function websocketSignaling({
 
   const connect = function () {
     console.debug(`[signal] connecting to ${url}`);
+
+    connection = ws({
+      address: url,
+      onClose,
+      onError,
+      onMessage,
+      onOpen,
+    });
+
     onConnect(this);
-
-    connection = new WebSocket(url);
-
-    if (onClose) connection.onclose = onClose;
-    if (onError) connection.onerror = onError;
-    if (onMessage) connection.onmessage = onMessage;
-    if (onOpen) connection.onopen = onOpen;
 
     return connection;
   };
@@ -103,16 +99,16 @@ function websocketSignaling({
   const send = () => {
     return {
       raw: (data) => {
-        connection.send(data);
+        connection?.send(data);
       },
       encoded: (data) => {
-        connection.send(_encode(data));
+        connection?.send(_encode(data));
       },
     };
   };
 
   const close = () => {
-    connection.close();
+    connection?.close();
   };
 
   return Object.freeze({

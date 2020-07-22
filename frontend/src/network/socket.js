@@ -10,13 +10,7 @@
  * conn.send('test');
  *
  */
-export default function (
-  address = '',
-  onOpen = () => {},
-  onMessage = () => {},
-  onError = (error) => {},
-  onClose = () => {}
-) {
+export default function ({ address = '', onOpen, onMessage, onError, onClose } = {}) {
   const messages = [];
 
   console.info(`[socket] connecting to [${address}]`);
@@ -25,26 +19,27 @@ export default function (
   conn.binaryType = 'arraybuffer';
 
   conn.onopen = () => {
-    console.info('[socket] connection open');
-    console.info(`[socket] there are ${messages.length} messages in queue`);
+    console.info('[socket] connection has been opened');
+    console.debug(`[socket] there are ${messages.length} messages in queue`);
 
     let message;
     while ((message = messages.pop())) {
-      conn.send(message);
+      send(message);
     }
-    onOpen();
+
+    onOpen?.();
   };
   conn.onerror = (error) => {
     console.error(`[socket] ${error}`);
-    onError(error);
+    onError?.(error);
   };
   conn.onclose = () => {
-    console.info('[socket] closed');
-    onClose();
+    console.debug('[socket] closed');
+    onClose?.();
   };
   conn.onmessage = (response) => {
-    console.log(response);
-    onMessage(response);
+    console.debug(`[socket] received: ${response.data}`);
+    onMessage?.(response);
   };
 
   /**
@@ -55,13 +50,19 @@ export default function (
     if (conn.readyState !== WS_STATE.OPEN) {
       messages.push(data);
     } else {
+      console.debug(`[socket] sending: ${data}`);
       conn.send(data);
     }
+  };
+
+  const close = () => {
+    conn?.close();
   };
 
   return Object.freeze({
     conn,
     send,
+    close,
   });
 }
 

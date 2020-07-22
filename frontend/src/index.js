@@ -1,8 +1,11 @@
-import { init, websocketServerConnect } from './webrtc';
+import { init, connect } from './webrtc';
 import adapter from 'webrtc-adapter';
 
 import Stream from './media/stream';
-import { builder as WebRTC } from './network/webrtc';
+
+// setup:
+//
+// python -u ./simple_server.py --disable-ssl
 
 function main() {
   console.info(
@@ -14,7 +17,7 @@ function main() {
   vEl.append(vid.render());
 
   init(vid);
-  websocketServerConnect();
+  connect();
 }
 
 main();

@@ -47,6 +47,8 @@ export default function webrtc({
     })
     .onClose((event) => {
       onClose?.(event);
+      connection?.close();
+      connection = undefined;
       if (!reconnect) reconnect = setTimeout(prepare, 1000);
     })
     .onMessage((message) => {
@@ -81,10 +83,16 @@ export default function webrtc({
     }
   }
 
+  const shutdown = () => {
+    signaling?.close();
+  };
+
   return Object.freeze({
     connect,
+    signalling,
     getConnection,
     prepare,
+    shutdown,
   });
 }
 
