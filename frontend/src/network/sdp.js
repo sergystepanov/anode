@@ -5,7 +5,12 @@
  *
  * @param {string} sdp The text representation of SDP.
  * @param {string} name A search case insensitive codec (e.g. opus).
- * @param {Object} params A map of params to add.
+ * @param {Object} params A map of params to add (e.g. {key: 'value'}).
+ *
+ * @example
+ *
+ * // let sdp = 'some sdp string'
+ * sdp = addParamsToCodec(sdp, 'opus', {stereo: 1})
  */
 export const addParamsToCodec = (sdp, name, params) => {
   const _params = Object.entries(params)

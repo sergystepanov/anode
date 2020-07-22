@@ -1,3 +1,5 @@
+import { SignallingMod } from './signalling';
+
 /**
  * Webrtc module based on RTCPeerConnection element.
  *
@@ -24,16 +26,32 @@ export default function webrtc(
   }
 ) {
   let connection;
+  let signalling;
 
   const connect = () => {
     connection = new RTCPeerConnection(opts.rtc);
   };
-
+  /**
+   * @returns {RTCPeerConnection}
+   */
   const getConnection = () => connection;
+
+  /**
+   *
+   * @param {SignallingMod} signalling_
+   */
+  const setSignalling = (signalling_) => {
+    signalling = signalling_;
+  };
 
   return {
     connect,
     getConnection,
+    setSignalling,
+    /**
+     * @returns {SignallingMod}
+     */
+    signalling: () => signalling,
   };
 }
 
