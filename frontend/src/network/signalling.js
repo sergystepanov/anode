@@ -119,6 +119,9 @@ function websocketSignaling({
   });
 }
 
+/**
+ * Returns default Websocket address based on request protocol of the app.
+ */
 function getDefaultWebsocketAddress() {
   const requestProtocol = window.location.protocol;
 

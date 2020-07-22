@@ -87,7 +87,10 @@ export default function webrtc({
     signaling?.close();
   };
 
+  const isActive = () => !!connection;
+
   return Object.freeze({
+    isActive,
     connect,
     signalling,
     getConnection,
