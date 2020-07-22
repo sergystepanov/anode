@@ -13,9 +13,7 @@ function main() {
   const vEl = document.getElementById('player');
   vEl.append(vid.render());
 
-  const rtc = WebRTC().withSignaling().build();
-
-  init(vid, rtc);
+  init(vid);
   websocketServerConnect();
 }
 

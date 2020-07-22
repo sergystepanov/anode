@@ -1,4 +1,4 @@
-import { SignallingMod } from './signalling';
+import signallingBuilder from './signalling';
 
 /**
  * Webrtc module based on RTCPeerConnection element.
@@ -14,54 +14,80 @@ import { SignallingMod } from './signalling';
  * const w = WebRTC();
  *
  */
-export default function webrtc(
-  opts = {
-    rtc: {
-      iceServers: [
-        { urls: 'stun:stun.services.mozilla.com' },
-        { urls: 'stun:stun.stunprotocol.org' },
-        { urls: 'stun:stun.l.google.com:19302' },
-      ],
-    },
-  }
-) {
+export default function webrtc({
+  reconnects = 3,
+  peerId = 100,
+  rtc = {
+    iceServers: [
+      { urls: 'stun:stun.services.mozilla.com' },
+      { urls: 'stun:stun.stunprotocol.org' },
+      { urls: 'stun:stun.l.google.com:19302' },
+    ],
+  },
+  onPrepare,
+  onPrepareFail,
+  onConnect,
+  onClose,
+  onError,
+  onMessage,
+  onOpen,
+} = {}) {
+  let attempts = 0;
   let connection;
-  let signalling;
+  let reconnect;
+
+  let signalling = signallingBuilder()
+    .onConnect((signalling) => {
+      reconnect = false;
+      onConnect?.(signalling);
+    })
+    .onError((event) => {
+      onError?.(event);
+      if (!reconnect) reconnect = setTimeout(prepare, 3000);
+    })
+    .onClose((event) => {
+      onClose?.(event);
+      if (!reconnect) reconnect = setTimeout(prepare, 1000);
+    })
+    .onMessage((message) => {
+      onMessage?.(message);
+    })
+    .onOpen((event) => {
+      let peer_id = peerId ?? getOurId();
+      signalling?.send().raw(`HELLO ${peer_id}`);
+      onOpen?.(peer_id);
+    })
+    .build();
 
   const connect = () => {
-    connection = new RTCPeerConnection(opts.rtc);
+    attempts = 0;
+    connection = new RTCPeerConnection(rtc);
   };
   /**
    * @returns {RTCPeerConnection}
    */
   const getConnection = () => connection;
 
-  /**
-   *
-   * @param {SignallingMod} signalling_
-   */
-  const setSignalling = (signalling_) => {
-    signalling = signalling_;
-  };
+  function prepare() {
+    onPrepare?.();
 
-  return {
+    if (signalling) {
+      if (++attempts > reconnects) {
+        onPrepareFail?.();
+        return;
+      }
+
+      signalling?.connect();
+    }
+  }
+
+  return Object.freeze({
     connect,
     getConnection,
-    setSignalling,
-    /**
-     * @returns {SignallingMod}
-     */
-    signalling: () => signalling,
-  };
+    prepare,
+  });
 }
 
-export function builder() {
-  return {
-    withSignaling: function () {
-      return this;
-    },
-    build: function () {
-      return webrtc();
-    },
-  };
+function getOurId() {
+  return Math.floor(Math.random() * (9000 - 10) + 10).toString();
 }
