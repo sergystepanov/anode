@@ -17,13 +17,14 @@ export default function ({
   }
 
   const getStream = async () => {
-    if (!supported) return;
+    if (!supported) return Promise.reject();
 
     let stream_;
     try {
       stream_ = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (e) {
       onError?.(e);
+      return Promise.reject();
     }
 
     stream = stream_;
