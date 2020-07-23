@@ -14,7 +14,7 @@ import signallingBuilder from './signalling';
  * const w = WebRTC();
  *
  */
-export default function webrtc({
+export default function ({
   reconnects = 3,
   peerId = 100,
   rtc = {
@@ -34,6 +34,7 @@ export default function webrtc({
   onRemoteTrack,
 } = {}) {
   let attempts = 0;
+  /** @type RTCPeerConnection */
   let connection;
   let reconnect;
 
@@ -53,39 +54,36 @@ export default function webrtc({
       if (!reconnect) reconnect = setTimeout(prepare, 1000);
     })
     .onMessage((event) => {
-      const message = event.data;
-      console.debug(`[webrtc] got ${message}`);
+      const m = event.data;
+      console.debug(`[webrtc] got ${m}`);
 
-      if (!message.startsWith('HELLO') && !message.startsWith('ERROR')) {
-        if (event.data.startsWith('OFFER_REQUEST')) {
+      switch (m) {
+        case m.startsWith('HELLO') ?? '':
+          console.info(`[webrtc] session is opened`);
+          break;
+        case m.startsWith('ERROR') ?? '':
+          onError?.(`ERROR: ${error}`);
+          rtc?.shutdown();
+          break;
+        case m.startsWith('OFFER_REQUEST') ?? '':
           // The peer wants us to set up and then send an offer
-          callMeMaybe(null).then(generateOffer());
-        } else {
-          let msg;
+          callMeMaybe(null).then(createOffer);
+          break;
+        default:
           // Handle incoming JSON SDP and ICE messages
-          try {
-            msg = JSON.parse(event.data);
-          } catch (e) {
-            if (e instanceof SyntaxError) {
-              console.error(`JSON parse error: ${message}`);
-            } else {
-              console.error(`Unknown response ${message}`);
-            }
-            msg = undefined;
-          }
+          let msg = fromJson(m);
 
           if (msg) {
             callMeMaybe(msg);
 
             if (msg.sdp != null) {
-              onIncomingSDP(msg.sdp);
+              onIncomingSDP(msg.sdp).catch(onError);
             } else if (msg.ice != null) {
               onIncomingICE(msg.ice);
             } else {
-              console.warn(`Unknown incoming JSON: ${msg}`);
+              console.warn(`[webrtc] unhandled message: ${msg}`);
             }
           }
-        }
       }
 
       onMessage?.(event);
@@ -103,7 +101,7 @@ export default function webrtc({
 
     connection.onicecandidate = (event) => {
       if (event.candidate === null) {
-        console.log('ICE Candidate was null, done');
+        console.log('[webrtc] ICE candidate was null, done');
         return;
       }
 
@@ -153,17 +151,14 @@ export default function webrtc({
   }
 
   // SDP offer received from peer, set remote description and create an answer
-  function onIncomingSDP(sdp) {
-    connection
-      ?.setRemoteDescription(sdp)
-      .then(() => {
-        console.debug('Remote SDP set');
-        if (sdp.type != 'offer') return;
-        console.debug('Got SDP offer');
-        connection.createAnswer().then(onLocalDescription).catch(onError);
-        // + wait for a local stream
-      })
-      .catch(onError);
+  async function onIncomingSDP(sdp) {
+    await connection?.setRemoteDescription(sdp);
+    console.debug('[webrtc] remote SDP set');
+    if (sdp.type !== 'offer') return;
+
+    console.debug('[webrtc] got SDP offer');
+    connection?.createAnswer().then(onLocalDescription).catch(onError);
+    // + wait for a local stream
   }
 
   function prepare() {
@@ -193,8 +188,9 @@ export default function webrtc({
     connection?.addStream(stream);
   };
 
-  function generateOffer() {
-    connection?.createOffer().then(onLocalDescription).catch(onError);
+  async function createOffer() {
+    const sdp = await connection?.createOffer();
+    onLocalDescription(sdp);
   }
 
   // ICE candidate received from peer, add it to the peer connection
@@ -206,15 +202,15 @@ export default function webrtc({
   }
 
   // Local description was set, send it to peer
-  function onLocalDescription(desc) {
-    console.log('Got local description: ' + desc.sdp);
+  async function onLocalDescription(desc) {
+    console.log(`[webrtc] got local SDP`);
 
     // force stereo in Chrome
     // !to fix inf loop in Firefox
     // desc.sdp = addParamsToCodec(desc.sdp, 'opus', { 'sprop-stereo': 1, stereo: 1 });
 
-    connection?.setLocalDescription(desc).then(function () {
-      console.debug(`Sending SDP ${desc.type}`);
+    connection?.setLocalDescription(desc).then(() => {
+      console.debug(`[webrtc] sending SDP ${desc.type}`);
       signalling?.send().encoded({ sdp: connection.localDescription });
     });
   }
@@ -226,12 +222,21 @@ export default function webrtc({
     getConnection,
     prepare,
     shutdown,
-
-    generateOffer,
     addStream,
   });
 }
 
 function getOurId() {
   return Math.floor(Math.random() * (9000 - 10) + 10).toString();
+}
+
+function fromJson(data) {
+  let result;
+  try {
+    result = JSON.parse(data);
+  } catch (e) {
+    console.error(`Non-parsable JSON ${data}`);
+  }
+
+  return result;
 }
