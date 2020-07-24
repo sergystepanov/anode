@@ -17,7 +17,7 @@ import signallingBuilder from './signalling';
 export default function ({
   reconnects = 3,
   peerId = 100,
-  stopLocalIce = true,
+  stopLocalIce = false,
   rtc = {
     iceServers: [
       { urls: 'stun:stun.services.mozilla.com' },
@@ -36,7 +36,10 @@ export default function ({
 } = {}) {
   const state = Object.seal({
     connectionAttempts: 0,
+    connectionState: '',
     localIceCompleted: false,
+    iceConnectionState: '',
+    iceGatheringState: '',
   });
 
   /** @type RTCPeerConnection */
@@ -101,10 +104,11 @@ export default function ({
     .build();
 
   const connect = () => {
-    state.connectionAttempts = 0;
-    state.localIceCompleted = false;
-    connection = new RTCPeerConnection(rtc);
+    resetState();
 
+    connection = new RTCPeerConnection(rtc);
+    connection.onconnectionstatechange = _onConnectionStateChange;
+    connection.ondatachannel = _onDataChannel;
     // make Trickle ICE (1)
     connection.onicecandidate = (event) => {
       if (!stopLocalIce && state.localIceCompleted) return;
@@ -118,6 +122,8 @@ export default function ({
 
       signalling?.send().encoded({ ice: event.candidate });
     };
+    connection.oniceconnectionstatechange = _onIceConnectionStateChange;
+    connection.onicegatheringstatechange = _onIceGatheringStateChange;
 
     if (onRemoteTrack) {
       connection.ontrack = onRemoteTrack;
@@ -187,6 +193,7 @@ export default function ({
   }
 
   const shutdown = () => {
+    state.connectionState = '';
     signaling?.close();
   };
 
@@ -223,6 +230,46 @@ export default function ({
       console.debug(`[webrtc] sending SDP ${desc.type}`);
       signalling?.send().encoded({ sdp: connection.localDescription });
     });
+  }
+
+  /**
+   * This happens whenever the aggregate state of the connection changes.
+   */
+  function _onConnectionStateChange() {
+    console.debug(
+      `[webrtc] connection state change [${state.connectionState}] -> [${connection.connectionState}]`
+    );
+    state.connectionState = connection.connectionState;
+  }
+
+  function _onIceConnectionStateChange() {
+    console.debug(
+      `[webrtc][ice] ICE connection state change [${state.iceConnectionState}] -> [${connection.iceConnectionState}]`
+    );
+    state.iceConnectionState = connection.iceConnectionState;
+  }
+
+  function _onIceGatheringStateChange() {
+    console.debug(
+      `[webrtc][ice] ICE gathering state change [${state.iceGatheringState}] -> [${connection.iceGatheringState}]`
+    );
+    state.iceGatheringState = connection.iceGatheringState;
+  }
+
+  /**
+   * This event, of type RTCDataChannelEvent, is sent when an RTCDataChannel
+   * is added to the connection by the remote peer calling createDataChannel().
+   *
+   * @param {RTCDataChannelEvent} event
+   */
+  function _onDataChannel(event) {}
+
+  function resetState() {
+    state.connectionAttempts = 0;
+    state.localIceCompleted = false;
+    state.iceConnectionState = '';
+    state.iceGatheringState = '';
+    state.connectionState = '';
   }
 
   return Object.freeze({
