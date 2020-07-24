@@ -17,6 +17,7 @@ import signallingBuilder from './signalling';
 export default function ({
   reconnects = 3,
   peerId = 100,
+  stopLocalIce = true,
   rtc = {
     iceServers: [
       { urls: 'stun:stun.services.mozilla.com' },
@@ -33,7 +34,11 @@ export default function ({
   onOpen,
   onRemoteTrack,
 } = {}) {
-  let attempts = 0;
+  const state = Object.seal({
+    connectionAttempts: 0,
+    localIceCompleted: false,
+  });
+
   /** @type RTCPeerConnection */
   let connection;
   let reconnect;
@@ -58,14 +63,14 @@ export default function ({
       console.debug(`[webrtc] got ${m}`);
 
       switch (m) {
-        case m.startsWith('HELLO') ?? '':
+        case m.startsWith('HELLO') ? m : '':
           console.info(`[webrtc] session is opened`);
           break;
-        case m.startsWith('ERROR') ?? '':
+        case m.startsWith('ERROR') ? m : '':
           onError?.(`ERROR: ${error}`);
           rtc?.shutdown();
           break;
-        case m.startsWith('OFFER_REQUEST') ?? '':
+        case m.startsWith('OFFER_REQUEST') ? m : '':
           // The peer wants us to set up and then send an offer
           callMeMaybe(null).then(createOffer);
           break;
@@ -79,7 +84,7 @@ export default function ({
             if (msg.sdp != null) {
               onIncomingSDP(msg.sdp).catch(onError);
             } else if (msg.ice != null) {
-              onIncomingICE(msg.ice);
+              onRemoteIceCandidate(msg.ice).catch(onError);
             } else {
               console.warn(`[webrtc] unhandled message: ${msg}`);
             }
@@ -96,14 +101,20 @@ export default function ({
     .build();
 
   const connect = () => {
-    attempts = 0;
+    state.connectionAttempts = 0;
+    state.localIceCompleted = false;
     connection = new RTCPeerConnection(rtc);
 
+    // make Trickle ICE (1)
     connection.onicecandidate = (event) => {
+      if (!stopLocalIce && state.localIceCompleted) return;
+
       if (event.candidate === null) {
-        console.log('[webrtc] ICE candidate was null, done');
+        state.localIceCompleted = true;
+        console.log('[webrtc][ice] ICE gathering is complete');
         return;
       }
+      console.debug(`[webrtc][ice] got ice`, event.candidate);
 
       signalling?.send().encoded({ ice: event.candidate });
     };
@@ -157,7 +168,8 @@ export default function ({
     if (sdp.type !== 'offer') return;
 
     console.debug('[webrtc] got SDP offer');
-    connection?.createAnswer().then(onLocalDescription).catch(onError);
+    const answer = await connection?.createAnswer();
+    onLocalDescription(answer);
     // + wait for a local stream
   }
 
@@ -165,7 +177,7 @@ export default function ({
     onPrepare?.();
 
     if (signalling) {
-      if (++attempts > reconnects) {
+      if (++state.connectionAttempts > reconnects) {
         onPrepareFail?.();
         return;
       }
@@ -193,12 +205,10 @@ export default function ({
     onLocalDescription(sdp);
   }
 
-  // ICE candidate received from peer, add it to the peer connection
-  function onIncomingICE(ice) {
-    connection?.addIceCandidate(new RTCIceCandidate(ice)).catch((err) => {
-      console.error(err);
-      onError();
-    });
+  // make Trickle ICE (2)
+  async function onRemoteIceCandidate(ice) {
+    console.debug(`[webrtc][ice] received ice`, ice);
+    await connection?.addIceCandidate(new RTCIceCandidate(ice));
   }
 
   // Local description was set, send it to peer
