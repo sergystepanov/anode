@@ -46,7 +46,11 @@ export default function ({
   let connection;
   let reconnect;
 
-  let signalling = signallingBuilder()
+  const dataChannels = new Map();
+
+  let me = this;
+
+  const signalling = signallingBuilder()
     .onConnect((signalling) => {
       reconnect = false;
       onConnect?.(signalling);
@@ -70,8 +74,8 @@ export default function ({
           console.info(`[webrtc] session is opened`);
           break;
         case m.startsWith('ERROR') ? m : '':
-          onError?.(`ERROR: ${error}`);
-          rtc?.shutdown();
+          onError?.(`ERROR: ${m}`);
+          shutdown();
           break;
         case m.startsWith('OFFER_REQUEST') ? m : '':
           // The peer wants us to set up and then send an offer
@@ -140,12 +144,15 @@ export default function ({
     console.info('[webrtc] setup peer connection');
 
     connect();
-    // send_channel = peer_connection.createDataChannel('label', null);
-    // send_channel.onopen = handleDataChannelOpen;
-    // send_channel.onmessage = handleDataChannelMessageReceived;
-    // send_channel.onerror = handleDataChannelError;
-    // send_channel.onclose = handleDataChannelClose;
-    // peer_connection.ondatachannel = onDataChannel;
+
+    // add a data channel
+    const ch0 = connection.createDataChannel('label', null);
+    ch0.onopen = onDataChannelOpen;
+    ch0.onmessage = onDataChannelMessageReceived;
+    ch0.onerror = onDataChannelError;
+    ch0.onclose = onDataChannelClose;
+
+    dataChannels.set('ch0', ch0);
 
     /* Send our video/audio to the other peer */
 
@@ -192,10 +199,10 @@ export default function ({
     }
   }
 
-  const shutdown = () => {
+  function shutdown() {
     state.connectionState = '';
-    signaling?.close();
-  };
+    signalling.close();
+  }
 
   const isActive = () => !!connection;
 
@@ -232,6 +239,30 @@ export default function ({
     });
   }
 
+  function onDataChannelOpen(event) {
+    console.debug('[webrtc][data-chan] has been opened', event);
+  }
+
+  function onDataChannelMessageReceived(event) {
+    console.debug('[webrtc][data-chan] got a message', event, event.data.type);
+
+    if (typeof event.data === 'string' || event.data instanceof String) {
+      console.info(`[webrtc][data-chan] message: ${event.data}`);
+    } else {
+      console.info(`[webrtc][data-chan] bin message: ${event.data}`);
+    }
+
+    dataChannels.get('ch0').send('Hey!');
+  }
+
+  function onDataChannelError(error) {
+    console.error('[webrtc][data-chan] an error', error);
+  }
+
+  function onDataChannelClose(event) {
+    console.debug('[webrtc][data-chan] closed', event);
+  }
+
   /**
    * This happens whenever the aggregate state of the connection changes.
    */
@@ -262,7 +293,15 @@ export default function ({
    *
    * @param {RTCDataChannelEvent} event
    */
-  function _onDataChannel(event) {}
+  function _onDataChannel(event) {
+    console.debug('[webrtc] data channel has been created', event.channel);
+
+    let inChannel = event.channel;
+    inChannel.onopen = onDataChannelOpen;
+    inChannel.onmessage = onDataChannelMessageReceived;
+    inChannel.onerror = onDataChannelError;
+    inChannel.onclose = onDataChannelClose;
+  }
 
   function resetState() {
     state.connectionAttempts = 0;
@@ -280,6 +319,10 @@ export default function ({
     prepare,
     shutdown,
     addStream,
+    testMessage: () => {
+      signalling.send().raw('ROOM_PEER_MSG 101 HIHI');
+      // dataChannels.get('ch0').send('Hey!');
+    },
   });
 }
 
