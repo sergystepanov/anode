@@ -1,0 +1,30 @@
+{
+  "name": "anode-web",
+  "version": "1.0.0",
+  "description": "A frontend for anode app",
+  "main": "index.js",
+  "scripts": {
+    "start": "parcel serve ./src/index.html",
+    "build": "parcel build ./src/index.html -d ../static/root",
+    "watch": "parcel watch ./src/index.html -d ../static/root",
+    "test": "jest --watch"
+  },
+  "author": "::::::::::::::: <sergystepanov@gmail.com>",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@babel/core": "^7.10.5",
+    "@babel/preset-env": "^7.10.4",
+    "babel-jest": "^26.1.0",
+    "jest": "^26.1.0",
+    "parcel": "next"
+  },
+  "dependencies": {
+    "webrtc-adapter": "^7.6.3"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "\\.(css|less|sass|scss)$": "<rootDir>/__mocks__/styleMock.js",
+      "\\.(gif|ttf|eot|svg)$": "<rootDir>/__mocks__/fileMock.js"
+    }
+  }
+}
