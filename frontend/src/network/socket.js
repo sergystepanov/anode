@@ -30,7 +30,7 @@ export default function ({ address = '', onOpen, onMessage, onError, onClose } =
     onOpen?.();
   };
   conn.onerror = (error) => {
-    console.error(`[socket] ${error}`);
+    console.error(`[socket] fail`, error);
     onError?.(error);
   };
   conn.onclose = () => {

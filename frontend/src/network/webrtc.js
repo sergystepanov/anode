@@ -15,6 +15,7 @@ import signallingBuilder from './signalling';
  *
  */
 export default function ({
+  address,
   reconnects = 3,
   peerId = 100,
   stopLocalIce = false,
@@ -51,6 +52,7 @@ export default function ({
   let me = this;
 
   const signalling = signallingBuilder()
+    .url(address)
     .onConnect((signalling) => {
       reconnect = false;
       onConnect?.(signalling);
