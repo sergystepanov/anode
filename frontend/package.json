@@ -2,11 +2,10 @@
   "name": "anode-web",
   "version": "1.0.0",
   "description": "A frontend for anode app",
-  "main": "index.js",
   "scripts": {
     "start": "parcel serve ./src/index.html",
-    "build": "parcel build ./src/index.html -d ../static/root",
-    "watch": "parcel watch ./src/index.html -d ../static/root",
+    "build": "parcel build ./src/index.html --dist-dir ../static/root",
+    "watch": "parcel watch ./src/index.html --dist-dir ../static/root",
     "test": "jest --watch"
   },
   "author": "::::::::::::::: <sergystepanov@gmail.com>",

@@ -29,6 +29,7 @@ function main() {
   vEl.append(vid.render());
 
   rtc = webrtc({
+    address: `ws://${window.location.host}/ws/`,
     peerId: default_peer_id,
     onConnect: onServerConnect,
     onPrepare: onServerPrepare,
