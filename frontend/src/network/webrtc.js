@@ -320,7 +320,7 @@ export default function ({
     shutdown,
     addStream,
     testMessage: () => {
-      signalling.send().raw('ROOM_PEER_MSG 101 HIHI');
+      signalling.send().raw('ROOM_PEER_MSG 101 HI');
       // dataChannels.get('ch0').send('Hey!');
     },
   });
