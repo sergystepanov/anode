@@ -4,6 +4,16 @@ import ws from './socket';
  * Webrtc signalling module builder.
  *
  * @module network/signalling
+ *
+ * @param {Object} [params={}] An optional list of building params.
+ * @param {Object} [params.factory] A custom signalling factory.
+ * @param {String} [params.factory.url] A server address.
+ * @param {Function} [params.factory.onConnect] A post-connection handler callback.
+ * @param {Function} [params.factory.onOpen] A post-open handler callback.
+ * @param {Function} [params.factory.onClose] A post-close handler callback.
+ * @param {Function} [params.factory.onError] A custom error handler callback. Returns an error.
+ * @param {Function} [params.factory.onMessage] An incoming message handler callback. Returns a message.
+ *
  * @example
  *
  * const signalling = signallingBuilder(
@@ -13,7 +23,7 @@ import ws from './socket';
  *  .onConnect((x) => console.log(x))
  *  .build();
  */
-export default function signallingBuilder({ factory = websocketSignaling } = {}) {
+export default function signallingBuilder({ factory } = {}) {
   let url, onConnect, onClose, onError, onMessage, onOpen;
 
   return {
@@ -41,9 +51,6 @@ export default function signallingBuilder({ factory = websocketSignaling } = {})
       onOpen = callback;
       return this;
     },
-    /**
-     * @returns {SignallingMod}
-     */
     build: function () {
       return factory({
         url,
@@ -57,7 +64,7 @@ export default function signallingBuilder({ factory = websocketSignaling } = {})
   };
 }
 
-function websocketSignaling({
+export function websocketSignalling({
   url = getDefaultWebsocketAddress(),
   onConnect,
   onClose,
