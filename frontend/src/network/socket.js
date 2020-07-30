@@ -34,7 +34,7 @@ export default function ({
     console.debug(`[socket] there are [${messageQueue.length}] messages in the queue`);
 
     let message;
-    while ((message = messageQueue.pop())) send(message);
+    while ((message = messageQueue.pop()) && conn.readyState === STATE.OPEN) send(message);
 
     onOpen?.();
   };
