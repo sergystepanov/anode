@@ -4,41 +4,51 @@
  * @param {string} address A WebSocket address value.
  * @example <caption>Example usage of socket module.</caption>
  *
- * import {Socket} from './socket'
+ * import Socket from './socket'
  *
- * const conn = Socket('ws://localhost:1234/ws');
+ * const conn = Socket({
+ *  address: 'ws://localhost:1234/ws',
+ *  onOpen: () => { console.log('socket is open'); }
+ * });
  * conn.send('test');
  *
  */
-export default function ({ address = '', onOpen, onMessage, onError, onClose } = {}) {
-  const messages = [];
+export default function ({
+  socket = WebSocket,
+  address,
+  binaryType = 'arraybuffer',
+  onOpen,
+  onMessage,
+  onError,
+  onClose,
+} = {}) {
+  let messageQueue = [];
 
   console.info(`[socket] connecting to [${address}]`);
 
-  const conn = new WebSocket(address);
-  conn.binaryType = 'arraybuffer';
+  const conn = new socket(address);
+  conn.binaryType = binaryType;
 
   conn.onopen = () => {
     console.info('[socket] connection has been opened');
-    console.debug(`[socket] there are ${messages.length} messages in queue`);
+    console.debug(`[socket] there are [${messageQueue.length}] messages in the queue`);
 
     let message;
-    while ((message = messages.pop())) {
-      send(message);
-    }
+    while ((message = messageQueue.pop()) && conn.readyState === STATE.OPEN) send(message);
 
     onOpen?.();
   };
   conn.onerror = (error) => {
-    console.error(`[socket] ${error}`);
+    messageQueue = [];
+    console.error(`[socket] fail`, error);
     onError?.(error);
   };
   conn.onclose = () => {
+    messageQueue = [];
     console.debug('[socket] closed');
     onClose?.();
   };
   conn.onmessage = (response) => {
-    console.debug(`[socket] received: ${response.data}`);
     onMessage?.(response);
   };
 
@@ -47,17 +57,15 @@ export default function ({ address = '', onOpen, onMessage, onError, onClose } =
    * @param {string | ArrayBuffer} data Some data value to send into the socket.
    */
   const send = (data) => {
-    if (conn.readyState !== WS_STATE.OPEN) {
-      messages.push(data);
-    } else {
+    if (conn.readyState == STATE.OPEN) {
       console.debug(`[socket] sending: ${data}`);
       conn.send(data);
+    } else {
+      messageQueue.push(data);
     }
   };
 
-  const close = () => {
-    conn?.close();
-  };
+  const close = () => conn?.close();
 
   return Object.freeze({
     conn,
@@ -67,7 +75,7 @@ export default function ({ address = '', onOpen, onMessage, onError, onClose } =
 }
 
 // socket states
-const WS_STATE = Object.freeze({
+export const STATE = Object.freeze({
   // Socket has been created. The connection is not yet open.
   CONNECTING: 0,
   // The connection is open and ready to communicate.

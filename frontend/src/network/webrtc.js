@@ -1,4 +1,5 @@
-import signallingBuilder from './signalling';
+import { signallingBuilder, websocketSignalling } from './signalling';
+import { fromJson } from '../data/data';
 
 /**
  * Webrtc module based on RTCPeerConnection element.
@@ -15,6 +16,7 @@ import signallingBuilder from './signalling';
  *
  */
 export default function ({
+  address,
   reconnects = 3,
   peerId = 100,
   stopLocalIce = false,
@@ -48,9 +50,10 @@ export default function ({
 
   const dataChannels = new Map();
 
-  let me = this;
+  const newId = () => Math.floor(Math.random() * (9000 - 10) + 10).toString();
 
-  const signalling = signallingBuilder()
+  const signalling = signallingBuilder({ factory: websocketSignalling })
+    .url(address)
     .onConnect((signalling) => {
       reconnect = false;
       onConnect?.(signalling);
@@ -101,7 +104,7 @@ export default function ({
       onMessage?.(event);
     })
     .onOpen((event) => {
-      let peer_id = peerId ?? getOurId();
+      let peer_id = peerId ?? newId();
       signalling?.send().raw(`HELLO ${peer_id}`);
       onOpen?.(peer_id);
     })
@@ -128,11 +131,9 @@ export default function ({
     };
     connection.oniceconnectionstatechange = _onIceConnectionStateChange;
     connection.onicegatheringstatechange = _onIceGatheringStateChange;
-
-    if (onRemoteTrack) {
-      connection.ontrack = onRemoteTrack;
-    }
+    if (onRemoteTrack) connection.ontrack = onRemoteTrack;
   };
+
   /**
    * @returns {RTCPeerConnection}
    */
@@ -201,7 +202,7 @@ export default function ({
 
   function shutdown() {
     state.connectionState = '';
-    signalling.close();
+    signalling?.close();
   }
 
   const isActive = () => !!connection;
@@ -246,11 +247,8 @@ export default function ({
   function onDataChannelMessageReceived(event) {
     console.debug('[webrtc][data-chan] got a message', event, event.data.type);
 
-    if (typeof event.data === 'string' || event.data instanceof String) {
-      console.info(`[webrtc][data-chan] message: ${event.data}`);
-    } else {
-      console.info(`[webrtc][data-chan] bin message: ${event.data}`);
-    }
+    const isText = typeof event.data === 'string' || event.data instanceof String;
+    console.info(`[webrtc][data-chan][${isText ? 'txt' : 'bin'}] message: ${event.data}`);
 
     dataChannels.get('ch0').send('Hey!');
   }
@@ -324,19 +322,4 @@ export default function ({
       // dataChannels.get('ch0').send('Hey!');
     },
   });
-}
-
-function getOurId() {
-  return Math.floor(Math.random() * (9000 - 10) + 10).toString();
-}
-
-function fromJson(data) {
-  let result;
-  try {
-    result = JSON.parse(data);
-  } catch (e) {
-    console.error(`Non-parsable JSON ${data}`);
-  }
-
-  return result;
 }
