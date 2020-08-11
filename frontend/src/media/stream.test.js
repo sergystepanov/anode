@@ -30,13 +30,23 @@ test('if stream is cleared', () => {
   expect(v.get().srcObject).toBeUndefined();
 });
 
-test('if custom video options are set', () => {
+test('if custom options are set', () => {
   const vv = Stream({
+    autoplay: true,
+    controls: true,
+    muted: true,
+    preload: 'none',
     ignore: undefined,
     volume: 0.5,
   });
 
   vv.render();
-  expect(vv.get().getAttribute('ignore')).toBe(null);
-  expect(vv.get().volume).toBe(0.5);
+  const { ignore, autoplay, controls, muted, preload, volume } = vv.get();
+
+  expect(ignore).toBeUndefined();
+  expect(autoplay).toBe(true);
+  expect(controls).toBe(true);
+  expect(muted).toBe(true);
+  expect(preload).toBe('none');
+  expect(volume).toBe(0.5);
 });

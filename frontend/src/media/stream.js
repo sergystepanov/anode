@@ -14,38 +14,24 @@ import './stream.css';
  * const s = Stream();
  *
  */
-export default function (
-  opts = {
-    autoplay: true,
-    controls: true,
-    muted: false,
-    preload: 'none',
-    volume: 0.1,
-  }
-) {
+export default function ({
+  autoplay = true,
+  controls = true,
+  muted = false,
+  preload = 'none',
+  volume = 0.1,
+} = {}) {
+  /** @type HTMLVideoElement */
   let el;
 
   const render = () => {
     el = document.createElement('video');
 
-    // !to rewrite
-    Object.keys(opts).forEach((key) => {
-      const value = opts[key];
-
-      if (value === undefined) return;
-
-      let setValue;
-      if (key === 'volume') {
-        el.volume = value;
-        return;
-      } else if (typeof opts[key] === 'boolean') {
-        setValue = value === true ? '' : value;
-      } else {
-        setValue = value;
-      }
-
-      el.setAttribute(key, setValue);
-    });
+    el.autoplay = autoplay;
+    el.controls = controls;
+    el.muted = muted;
+    el.preload = preload;
+    el.volume = volume;
 
     el.classList.add('stream');
     el.innerText = "Your browser doesn't support HTML5 video.";
@@ -74,10 +60,7 @@ export default function (
    * @param {MediaStream} stream A stream source to attach.
    */
   const addSource = (stream) => {
-    if (el.srcObject === stream) return;
-
-    // console.info(`[video] adding stream`);
-    el.srcObject = stream;
+    if (el.srcObject !== stream) el.srcObject = stream;
   };
 
   return Object.freeze({
