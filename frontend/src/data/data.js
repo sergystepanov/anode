@@ -8,3 +8,14 @@ export function fromJson(data) {
 
   return result;
 }
+
+export function toJson(data) {
+  let result;
+  try {
+    result = JSON.stringify(data);
+  } catch (e) {
+    console.error('[data] non-convertible JSON', data);
+  }
+
+  return result;
+}

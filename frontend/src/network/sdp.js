@@ -17,15 +17,16 @@ export const addParamsToCodec = (sdp, name, params) => {
     .map((x) => `${x[0]}=${x[1]}`)
     .join(';');
 
-  let search = new RegExp(`a=rtpmap:(\\d+) ${name}/`, 'gim');
+  let search = new RegExp(`a=rtpmap:(\\d+) ${name}/`, 'gi');
   let found;
+  let ids = [];
   while ((found = search.exec(sdp)) !== null) {
-    found.shift();
-    found.forEach((n) => {
-      console.info(`[sdp] mod /${name}/ track #${n}`);
-      sdp = sdp.replace(new RegExp(`(a=fmtp:${n} .*)`), `$1;${_params}`);
-    });
+    ids.push(found[1]);
   }
+  ids.forEach((n) => {
+    console.info(`[sdp] mod /${name}/ track #${n}`);
+    sdp = sdp.replace(new RegExp(`(a=fmtp:${n} .*)`), `$1;${_params}`);
+  });
 
   return sdp;
 };

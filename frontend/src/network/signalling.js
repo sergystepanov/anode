@@ -1,5 +1,3 @@
-import ws from './socket';
-
 /**
  * Webrtc signalling module builder.
  *
@@ -12,7 +10,17 @@ import ws from './socket';
  * @param {Function} [params.factory.onOpen] A post-open handler callback.
  * @param {Function} [params.factory.onClose] A post-close handler callback.
  * @param {Function} [params.factory.onError] A custom error handler callback. Returns an error.
+ * @param {Function} [params.factory.onServerError] A server exception handler callback.
  * @param {Function} [params.factory.onMessage] An incoming message handler callback. Returns a message.
+ * @param {Function} [params.factory.onOffer] A remote offer handler callback.
+ *
+ * @typedef {Object} Signalling
+ * @property {Function} connect Open new connection to the signaling server.
+ * @property {Function} close Close server connection.
+ * @property {Function} getUrl Returns the current server URL if implemented.
+ * @property {Function} send Sends some data to the signalling server.
+ * @property {Function} offerCandidate TBD
+ * @property {Function} offerSession TBD
  *
  * @example
  *
@@ -24,7 +32,7 @@ import ws from './socket';
  *  .build();
  */
 export default function signallingBuilder({ factory } = {}) {
-  let url, onConnect, onClose, onError, onMessage, onOpen;
+  let url, onConnect, onClose, onError, onServerError, onMessage, onOffer, onOpen;
 
   return {
     url: function (address) {
@@ -43,106 +51,36 @@ export default function signallingBuilder({ factory } = {}) {
       onError = callback;
       return this;
     },
+    onServerError: function (callback) {
+      onServerError = callback;
+      return this;
+    },
     onMessage: function (callback) {
       onMessage = callback;
+      return this;
+    },
+    onOffer: function (callback) {
+      onOffer = callback;
       return this;
     },
     onOpen: function (callback) {
       onOpen = callback;
       return this;
     },
+    /**
+     * @return {Signalling} Signalling
+     */
     build: function () {
       return factory({
         url,
         onConnect,
         onClose,
         onError,
+        onServerError,
         onMessage,
+        onOffer,
         onOpen,
       });
     },
   };
-}
-
-export function websocketSignalling({
-  url = getDefaultWebsocketAddress(),
-  onConnect,
-  onClose,
-  onError,
-  onMessage,
-  onOpen,
-} = {}) {
-  /** @type {WebSocket} */
-  let connection;
-
-  // !to add error handling
-  const _encode = (data) => JSON.stringify(data);
-
-  const connect = function () {
-    console.debug(`[signal] connecting to ${url}`);
-
-    connection = ws({
-      address: url,
-      onClose,
-      onError,
-      onMessage,
-      onOpen,
-    });
-
-    onConnect(this);
-
-    return connection;
-  };
-
-  /**
-   * Returns signalling server url.
-   * @returns {string}
-   */
-  const getUrl = () => url;
-
-  /**
-   * Sends data into signalling server.
-   */
-  const send = () => {
-    return {
-      raw: (data) => {
-        connection?.send(data);
-      },
-      encoded: (data) => {
-        connection?.send(_encode(data));
-      },
-    };
-  };
-
-  const close = () => {
-    connection?.close();
-  };
-
-  return Object.freeze({
-    connect,
-    close,
-    getUrl,
-    send,
-  });
-}
-
-/**
- * Returns default Websocket address based on request protocol of the app.
- */
-function getDefaultWebsocketAddress() {
-  const requestProtocol = window.location.protocol;
-
-  const { proto, addr } = requestProtocol.startsWith('file')
-    ? { proto: 'ws', addr: '127.0.0.1' }
-    : requestProtocol.startsWith('http')
-    ? { proto: 'ws', addr: window.location.hostname }
-    : requestProtocol.startsWith('https')
-    ? { proto: 'wss', addr: window.location.hostname }
-    : {};
-
-  const address = `${proto}://${addr}:8443`;
-
-  if (!proto || !addr) throw new Error(`Bad connection address: ${address}`);
-
-  return address;
 }

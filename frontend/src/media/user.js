@@ -6,9 +6,7 @@ export default function ({
   let supported = !!navigator.mediaDevices.getUserMedia;
   let stream;
 
-  if (!supported) {
-    onNotSupported?.();
-  }
+  if (!supported) onNotSupported?.();
 
   if (navigator.mediaDevices.getUserMedia) {
     return;

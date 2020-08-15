@@ -9,6 +9,7 @@ import Stream from './media/stream';
 // setup:
 //
 // python -u ./simple_server.py --disable-ssl
+// --peer-id=1 --server=ws://127.0.0.1:8443
 
 // Set this to use a specific peer id instead of a random one
 var default_peer_id = 101;
@@ -18,6 +19,8 @@ var vid;
 /** @type webrtc */
 var rtc;
 let localStream;
+
+const newId = () => Math.floor(Math.random() * (9000 - 10) + 10).toString();
 
 function main() {
   console.info(
@@ -29,8 +32,6 @@ function main() {
   vEl.append(vid.render());
 
   rtc = webrtc({
-    address: `ws://${window.location.host}/ws/`,
-    peerId: default_peer_id,
     onConnect: onServerConnect,
     onPrepare: onServerPrepare,
     onPrepareFail: () => {
@@ -50,9 +51,6 @@ function main() {
   });
 
   rtc.prepare();
-  // setTimeout(() => {
-  //   rtc.testMessage();
-  // }, 10000);
 }
 
 main();
@@ -71,8 +69,10 @@ function onServerClose(event) {
   resetVideo();
 }
 
-function onServerOpen(id) {
-  showPeerId(id);
+function onServerOpen(event) {
+  const peer_id = default_peer_id ?? newId();
+  rtc.signalling?.send().raw(`HELLO ${peer_id}`);
+  showPeerId(peer_id);
   setStatus('Registering with server');
 }
 

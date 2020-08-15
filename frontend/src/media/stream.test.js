@@ -1,5 +1,6 @@
 import Stream from './stream';
 
+// mock used HTML API for Node
 window.HTMLMediaElement.prototype.load = () => {
   /* do nothing */
 };

@@ -1,5 +1,5 @@
-import { signallingBuilder, websocketSignalling } from './signalling';
-import { fromJson } from '../data/data';
+import signallingApi from '../api/signallingApiV1';
+import { addParamsToCodec } from '../network/sdp';
 
 /**
  * Webrtc module based on RTCPeerConnection element.
@@ -16,9 +16,7 @@ import { fromJson } from '../data/data';
  *
  */
 export default function ({
-  address,
   reconnects = 3,
-  peerId = 100,
   stopLocalIce = false,
   rtc = {
     iceServers: [
@@ -50,10 +48,7 @@ export default function ({
 
   const dataChannels = new Map();
 
-  const newId = () => Math.floor(Math.random() * (9000 - 10) + 10).toString();
-
-  const signalling = signallingBuilder({ factory: websocketSignalling })
-    .url(address)
+  const signalling = signallingApi()
     .onConnect((signalling) => {
       reconnect = false;
       onConnect?.(signalling);
@@ -62,52 +57,35 @@ export default function ({
       onError?.(event);
       if (!reconnect) reconnect = setTimeout(prepare, 3000);
     })
+    .onServerError((error) => {
+      console.error(`[webrtc] got signalling error:`, error);
+      shutdown();
+    })
     .onClose((event) => {
       onClose?.(event);
       connection?.close();
       connection = undefined;
       if (!reconnect) reconnect = setTimeout(prepare, 1000);
     })
-    .onMessage((event) => {
-      const m = event.data;
-      console.debug(`[webrtc] got ${m}`);
-
-      switch (m) {
-        case m.startsWith('HELLO') ? m : '':
-          console.info(`[webrtc] session is opened`);
-          break;
-        case m.startsWith('ERROR') ? m : '':
-          onError?.(`ERROR: ${m}`);
-          shutdown();
-          break;
-        case m.startsWith('OFFER_REQUEST') ? m : '':
-          // The peer wants us to set up and then send an offer
-          callMeMaybe(null).then(createOffer);
-          break;
-        default:
-          // Handle incoming JSON SDP and ICE messages
-          let msg = fromJson(m);
-
-          if (msg) {
-            callMeMaybe(msg);
-
-            if (msg.sdp != null) {
-              onIncomingSDP(msg.sdp).catch(onError);
-            } else if (msg.ice != null) {
-              onRemoteIceCandidate(msg.ice).catch(onError);
-            } else {
-              console.warn(`[webrtc] unhandled message: ${msg}`);
-            }
-          }
+    .onOffer((data) => {
+      // The peer wants us to set up and then send an offer
+      openPeerConnection(data);
+      if (data === null) {
+        createOffer();
       }
+    })
+    .onMessage((message) => {
+      const { sdp, ice } = message;
 
-      onMessage?.(event);
+      if (sdp != null) {
+        onIncomingSDP(sdp).catch(onError);
+      } else if (ice != null) {
+        onRemoteIceCandidate(ice).catch(onError);
+      } else {
+        console.warn(`[webrtc] unhandled message: ${message}`);
+      }
     })
-    .onOpen((event) => {
-      let peer_id = peerId ?? newId();
-      signalling?.send().raw(`HELLO ${peer_id}`);
-      onOpen?.(peer_id);
-    })
+    .onOpen((event) => onOpen?.(event))
     .build();
 
   const connect = () => {
@@ -117,21 +95,10 @@ export default function ({
     connection.onconnectionstatechange = _onConnectionStateChange;
     connection.ondatachannel = _onDataChannel;
     // make Trickle ICE (1)
-    connection.onicecandidate = (event) => {
-      if (!stopLocalIce && state.localIceCompleted) return;
-
-      if (event.candidate === null) {
-        state.localIceCompleted = true;
-        console.log('[webrtc][ice] ICE gathering is complete');
-        return;
-      }
-      console.debug(`[webrtc][ice] got ice`, event.candidate);
-
-      signalling?.send().encoded({ ice: event.candidate });
-    };
+    connection.onicecandidate = _onIceCandidate;
     connection.oniceconnectionstatechange = _onIceConnectionStateChange;
     connection.onicegatheringstatechange = _onIceGatheringStateChange;
-    if (onRemoteTrack) connection.ontrack = onRemoteTrack;
+    connection.ontrack = onRemoteTrack;
   };
 
   /**
@@ -139,15 +106,17 @@ export default function ({
    */
   const getConnection = () => connection;
 
-  function callMeMaybe(msg) {
+  function openPeerConnection(message) {
     if (isActive()) return;
 
     console.info('[webrtc] setup peer connection');
 
     connect();
 
+    if (message) console.info('Created peer connection for call, waiting for SDP');
+
     // add a data channel
-    const ch0 = connection.createDataChannel('label', null);
+    const ch0 = connection.createDataChannel('data', null);
     ch0.onopen = onDataChannelOpen;
     ch0.onmessage = onDataChannelMessageReceived;
     ch0.onerror = onDataChannelError;
@@ -165,14 +134,7 @@ export default function ({
     //   })
     //   .catch(setError);
 
-    if (msg != null && !msg.sdp) {
-      console.log("WARNING: First message wasn't an SDP message!?");
-    }
-
-    if (msg != null) console.info('Created peer connection for call, waiting for SDP');
-
     // return local_stream_promise;
-    return Promise.resolve();
   }
 
   // SDP offer received from peer, set remote description and create an answer
@@ -234,10 +196,9 @@ export default function ({
     // !to fix inf loop in Firefox
     // desc.sdp = addParamsToCodec(desc.sdp, 'opus', { 'sprop-stereo': 1, stereo: 1 });
 
-    connection?.setLocalDescription(desc).then(() => {
-      console.debug(`[webrtc] sending SDP ${desc.type}`);
-      signalling?.send().encoded({ sdp: connection.localDescription });
-    });
+    await connection?.setLocalDescription(desc);
+    console.debug(`[webrtc] sending SDP ${desc.type}`);
+    signalling?.offerSession(connection.localDescription);
   }
 
   function onDataChannelOpen(event) {
@@ -269,6 +230,21 @@ export default function ({
       `[webrtc] connection state change [${state.connectionState}] -> [${connection.connectionState}]`
     );
     state.connectionState = connection.connectionState;
+  }
+
+  function _onIceCandidate(event) {
+    if (!stopLocalIce && state.localIceCompleted) return;
+
+    const { candidate } = event;
+
+    if (candidate === null) {
+      state.localIceCompleted = true;
+      console.log('[webrtc][ice] ICE gathering is complete');
+      return;
+    }
+    console.debug(`[webrtc][ice] got ice`, candidate);
+
+    signalling?.offerCandidate(candidate);
   }
 
   function _onIceConnectionStateChange() {
@@ -317,9 +293,5 @@ export default function ({
     prepare,
     shutdown,
     addStream,
-    testMessage: () => {
-      signalling.send().raw('ROOM_PEER_MSG 101 HI');
-      // dataChannels.get('ch0').send('Hey!');
-    },
   });
 }
