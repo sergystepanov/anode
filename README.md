@@ -1,5 +1,5 @@
 # anode
-<img src="https://github.com/sergystepanov/anode/workflows/Rust/badge.svg" alt="build status"><img src="https://github.com/sergystepanov/anode/workflows/Frontend%20CI/badge.svg" alt="frontend build status">
+<img src="https://github.com/sergystepanov/anode/workflows/Rust/badge.svg" alt="build status"> <img src="https://github.com/sergystepanov/anode/workflows/Frontend%20CI/badge.svg" alt="frontend build status">
 
 A simple network streamer writen in Rust and JS.
 
