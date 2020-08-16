@@ -18,7 +18,7 @@
     "parcel": "next"
   },
   "dependencies": {
-    "webrtc-adapter": "^7.6.4"
+    "webrtc-adapter": "^7.6.3"
   },
   "jest": {
     "moduleNameMapper": {
