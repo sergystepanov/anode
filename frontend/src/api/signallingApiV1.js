@@ -83,24 +83,14 @@ function factory({
    */
   const send = () => ({
     raw: (data) => connection?.send(data),
-    encoded: (data) => {
-      try {
-        connection?.send(toJson(data));
-      } catch (e) {
-        console.warn(`[signal] data encoding error`, e);
-      }
-    },
+    encoded: (data) => connection?.send(toJson(data)),
   });
 
   const close = () => connection?.close();
 
-  const offerCandidate = (candidate) => {
-    send().encoded({ ice: candidate });
-  };
+  const offerCandidate = (candidate) => send().encoded({ ice: candidate });
 
-  const offerSession = (sdp) => {
-    send().encoded({ sdp });
-  };
+  const offerSession = (sdp) => send().encoded({ sdp });
 
   return Object.freeze({
     connect,
