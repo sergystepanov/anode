@@ -1,3 +1,17 @@
+/**
+ * User media module based on MediaDevices media stream.
+ *
+ * Contains a wrapper for user's media streams.
+ * {@link https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia}.
+ *
+ * @module media/user
+ * @example
+ *
+ * import UserMedia from './media/user'
+ *
+ * const um = UserMedia();
+ *
+ */
 export default function ({
   constraints = { video: true, audio: true },
   onNotSupported,
@@ -8,24 +22,15 @@ export default function ({
 
   if (!supported) onNotSupported?.();
 
-  if (navigator.mediaDevices.getUserMedia) {
-    return;
-  } else {
-    errorUserMediaHandler();
-  }
-
   const getStream = async () => {
     if (!supported) return Promise.reject();
 
-    let stream_;
     try {
-      stream_ = await navigator.mediaDevices.getUserMedia(constraints);
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (e) {
       onError?.(e);
       return Promise.reject();
     }
-
-    stream = stream_;
 
     return stream;
   };
