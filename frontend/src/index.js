@@ -1,10 +1,12 @@
 import adapter from 'webrtc-adapter';
-import webrtc from './network/webrtc';
-import userStream from './media/user';
+
+import { Webrtc } from 'webrtc-fw/src/network';
+import { UserMedia, Stream } from 'webrtc-fw/src/media';
+import signallingApi from './api/signallingApiV1';
 
 import { setError, setStatus, clearError, showPeerId } from './ui/ui';
 
-import Stream from './media/stream';
+import './media/stream.css';
 
 // setup:
 //
@@ -31,7 +33,8 @@ function main() {
   const vEl = document.getElementById('player');
   vEl.append(vid.render());
 
-  rtc = webrtc({
+  rtc = Webrtc({
+    signallingApi,
     onConnect: onServerConnect,
     onPrepare: onServerPrepare,
     onPrepareFail: () => {
@@ -45,7 +48,7 @@ function main() {
     onRemoteTrack,
   });
 
-  localStream = userStream({
+  localStream = UserMedia({
     onNotSupported: errorUserMediaHandler,
     onError: setError,
   });

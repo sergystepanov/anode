@@ -1,5 +1,4 @@
-import signallingBuilder from '../network/signalling';
-import ws from '../network/socket';
+import { signallingBuilder, Socket } from 'webrtc-fw/src/network';
 import { fromJson, toJson } from '../data/data';
 
 // message prefixes
@@ -59,7 +58,7 @@ function factory({
   const connect = function () {
     console.debug(`[signal] connecting to ${url}`);
 
-    connection = ws({
+    connection = Socket({
       address: url,
       onClose,
       onError,
