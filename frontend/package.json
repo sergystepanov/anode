@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "webrtc-adapter": "^7.7.0",
-    "webrtc-fw": "^0.2.2"
+    "webrtc-fw": "^0.3.2"
   },
   "jest": {
     "moduleNameMapper": {

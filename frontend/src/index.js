@@ -1,7 +1,6 @@
 import adapter from 'webrtc-adapter';
 
-import { WebRTC } from 'webrtc-fw';
-import { UserMedia, Stream } from 'webrtc-fw';
+import { WebRTC, UserMedia, Stream } from 'webrtc-fw';
 import signallingApi from './api/signallingApiV1';
 
 import { setError, setStatus, clearError, showPeerId } from './ui/ui';
