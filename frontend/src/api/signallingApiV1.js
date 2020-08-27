@@ -1,4 +1,4 @@
-import { signallingBuilder, Socket } from 'webrtc-fw/src/network';
+import { SignallingBuilder, Socket } from 'webrtc-fw';
 import { fromJson, toJson } from '../data/data';
 
 // message prefixes
@@ -12,7 +12,7 @@ export const OFFER_REQUEST_MESSAGE = 'OFFER_REQUEST';
  * @version 1
  */
 export default function signallingApiV1() {
-  return signallingBuilder({ factory });
+  return SignallingBuilder({ factory });
   // .url(`ws://${window.location.host}/ws/`);
 }
 

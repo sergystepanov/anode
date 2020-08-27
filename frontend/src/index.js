@@ -1,7 +1,7 @@
 import adapter from 'webrtc-adapter';
 
-import { Webrtc } from 'webrtc-fw/src/network';
-import { UserMedia, Stream } from 'webrtc-fw/src/media';
+import { WebRTC } from 'webrtc-fw';
+import { UserMedia, Stream } from 'webrtc-fw';
 import signallingApi from './api/signallingApiV1';
 
 import { setError, setStatus, clearError, showPeerId } from './ui/ui';
@@ -33,7 +33,7 @@ function main() {
   const vEl = document.getElementById('player');
   vEl.append(vid.render());
 
-  rtc = Webrtc({
+  rtc = WebRTC({
     signallingApi,
     onConnect: onServerConnect,
     onPrepare: onServerPrepare,
