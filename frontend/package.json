@@ -11,15 +11,15 @@
   "author": "::::::::::::::: <sergystepanov@gmail.com>",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@babel/core": "^7.11.4",
-    "@babel/preset-env": "^7.11.0",
+    "@babel/core": "^7.11.6",
+    "@babel/preset-env": "^7.11.5",
     "babel-jest": "^26.3.0",
     "jest": "^26.4.2",
     "parcel": "next"
   },
   "dependencies": {
     "webrtc-adapter": "^7.7.0",
-    "webrtc-fw": "^0.3.2"
+    "webrtc-fw": "^0.3.7"
   },
   "jest": {
     "moduleNameMapper": {
