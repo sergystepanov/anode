@@ -1,14 +1,16 @@
 import adapter from 'webrtc-adapter';
-import webrtc from './network/webrtc';
-import userStream from './media/user';
+
+import { WebRTC, UserMedia, Stream } from 'webrtc-fw';
+import signallingApi from './api/signallingApiV1';
 
 import { setError, setStatus, clearError, showPeerId } from './ui/ui';
 
-import Stream from './media/stream';
+import './media/stream.css';
 
 // setup:
 //
 // python -u ./simple_server.py --disable-ssl
+// --peer-id=1 --server=ws://127.0.0.1:8443
 
 // Set this to use a specific peer id instead of a random one
 var default_peer_id = 101;
@@ -19,6 +21,8 @@ var vid;
 var rtc;
 let localStream;
 
+const newId = () => Math.floor(Math.random() * (9000 - 10) + 10).toString();
+
 function main() {
   console.info(
     `[webrtc] adapter: ${adapter.browserDetails.browser} ${adapter.browserDetails.version}`
@@ -28,9 +32,8 @@ function main() {
   const vEl = document.getElementById('player');
   vEl.append(vid.render());
 
-  rtc = webrtc({
-    address: `ws://${window.location.host}/ws/`,
-    peerId: default_peer_id,
+  rtc = WebRTC({
+    signallingApi,
     onConnect: onServerConnect,
     onPrepare: onServerPrepare,
     onPrepareFail: () => {
@@ -44,15 +47,12 @@ function main() {
     onRemoteTrack,
   });
 
-  localStream = userStream({
+  localStream = UserMedia({
     onNotSupported: errorUserMediaHandler,
     onError: setError,
   });
 
   rtc.prepare();
-  // setTimeout(() => {
-  //   rtc.testMessage();
-  // }, 10000);
 }
 
 main();
@@ -71,8 +71,10 @@ function onServerClose(event) {
   resetVideo();
 }
 
-function onServerOpen(id) {
-  showPeerId(id);
+function onServerOpen(event) {
+  const peer_id = default_peer_id ?? newId();
+  rtc.signalling?.send().raw(`HELLO ${peer_id}`);
+  showPeerId(peer_id);
   setStatus('Registering with server');
 }
 

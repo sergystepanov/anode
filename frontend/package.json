@@ -6,19 +6,20 @@
     "start": "parcel serve ./src/index.html",
     "build": "parcel build ./src/index.html --dist-dir ../static/root",
     "watch": "parcel watch ./src/index.html --dist-dir ../static/root",
-    "test": "jest --coverage"
+    "test": "jest --coverage --passWithNoTests"
   },
   "author": "::::::::::::::: <sergystepanov@gmail.com>",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@babel/core": "^7.10.5",
-    "@babel/preset-env": "^7.10.4",
-    "babel-jest": "^26.1.0",
-    "jest": "^26.1.0",
+    "@babel/core": "^7.11.6",
+    "@babel/preset-env": "^7.11.5",
+    "babel-jest": "^26.3.0",
+    "jest": "^26.4.2",
     "parcel": "next"
   },
   "dependencies": {
-    "webrtc-adapter": "^7.6.3"
+    "webrtc-adapter": "^7.7.0",
+    "webrtc-fw": "^0.3.7"
   },
   "jest": {
     "moduleNameMapper": {
