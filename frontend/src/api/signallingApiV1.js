@@ -17,7 +17,8 @@ export default function signallingApiV1() {
 }
 
 function factory({
-  url = getDefaultWebsocketAddress(),
+  url  = 'ws://127.0.0.1:8080/ws/',
+  //= getDefaultWebsocketAddress(),
   onConnect,
   onClose,
   onError,

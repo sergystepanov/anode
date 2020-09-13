@@ -1,13 +1,12 @@
+use log::{debug, info};
 use actix::prelude::*;
 use actix_files as fs;
 use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws;
-use std::time::{Duration, Instant};
+use std::{time::{Duration, Instant}, net};
+use api::message::parse as explode;
 
-async fn index(req: HttpRequest) -> &'static str {
-    println!("REQ: {:?}", req);
-    "Hello world!"
-}
+mod api;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -15,20 +14,25 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 async fn ws_index(r: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    println!("{:?}", r);
-    let res = ws::start(MyWebSocket::new(), &r, stream);
-    println!("{:?}", res);
-    res
+    let peer_address = r.peer_addr().unwrap();
+    info!("[peer] {}", peer_address);
+
+    let connection = Connection {
+        hb: Instant::now(),
+        address: peer_address
+    };
+
+    return ws::start(connection, &r, stream);
 }
 /// websocket connection is long running connection, it easier
 /// to handle with an actor
-struct MyWebSocket {
-    /// Client must send ping at least once per 10 seconds (CLIENT_TIMEOUT),
-    /// otherwise we drop connection.
+#[derive(Debug)]
+struct Connection {
     hb: Instant,
+    address: net::SocketAddr
 }
 
-impl Actor for MyWebSocket {
+impl Actor for Connection {
     type Context = ws::WebsocketContext<Self>;
 
     /// Method is called on actor start. We start the heartbeat process here.
@@ -37,77 +41,68 @@ impl Actor for MyWebSocket {
     }
 }
 
-/// Handler for `ws::Message`
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        // process websocket messages
-        println!("WS: {:?}", msg);
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Connection {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, conn: &mut Self::Context) {
+        debug!("[socket] ${:?}", msg);
+        
         match msg {
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();
-                ctx.pong(&msg);
+                conn.pong(&msg);
             }
             Ok(ws::Message::Pong(_)) => {
                 self.hb = Instant::now();
             }
             Ok(ws::Message::Text(text)) => {
-                if text.starts_with("HELLO") {
-                    ctx.text("HELLO")
-                } else {
-                    ctx.text(text)
+                let message = text.to_string();
+                let command = explode(&message);
+
+                match command {
+                    Some(("HELLO", _)) => conn.text("HELLO"),
+                    Some(("SESSION", _)) => conn.text("SESSION_OK"),
+                    Some((_, _)) => conn.text(text),
+                    None => conn.text(text),
                 }
             }
-            Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
+            Ok(ws::Message::Binary(bin)) => conn.binary(bin),
             Ok(ws::Message::Close(reason)) => {
-                ctx.close(reason);
-                ctx.stop();
+                conn.close(reason);
+                conn.stop();
             }
-            _ => ctx.stop(),
+            _ => conn.stop(),
         }
     }
 }
 
-impl MyWebSocket {
-    fn new() -> Self {
-        Self { hb: Instant::now() }
-    }
-
+impl Connection {
     /// helper method that sends ping to client every second.
     ///
     /// also this method checks heartbeats from client
     fn hb(&self, ctx: &mut <Self as Actor>::Context) {
-        ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
+        ctx.run_interval(HEARTBEAT_INTERVAL, |act, conn| {
             // check client heartbeats
             if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
-                // heartbeat timed out
                 println!("Websocket Client heartbeat failed, disconnecting!");
-
-                // stop actor
-                ctx.stop();
-
-                // don't try to send a ping
+                conn.stop();
                 return;
             }
 
-            ctx.ping(b"");
+            conn.ping(b"");
         });
     }
 }
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
+    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info,info,debug");
     env_logger::init();
 
     HttpServer::new(|| {
         App::new()
-            // enable logger
             .wrap(middleware::Logger::default())
-            // simple http
-            .service(web::resource("/hi").to(index))
-            // websocket route
+            // websocket endpoint
             .service(web::resource("/ws/").route(web::get().to(ws_index)))
-            // static files
+            // frontend endpoint
             .service(fs::Files::new("/", "static/root/").index_file("index.html"))
     })
     .bind("127.0.0.1:8080")?
