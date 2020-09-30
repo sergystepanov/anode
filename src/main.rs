@@ -1,10 +1,14 @@
-use log::{debug, info};
 use actix::prelude::*;
 use actix_files as fs;
 use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws;
-use std::{time::{Duration, Instant}, net};
 use api::message::parse as explode;
+use log::{debug, error, info};
+use std::{
+    collections::HashMap,
+    net,
+    time::{Duration, Instant},
+};
 
 mod api;
 
@@ -19,17 +23,26 @@ async fn ws_index(r: HttpRequest, stream: web::Payload) -> Result<HttpResponse, 
 
     let connection = Connection {
         hb: Instant::now(),
-        address: peer_address
+        address: peer_address,
     };
 
     return ws::start(connection, &r, stream);
 }
+
+// Describes application network state, peer connections
+#[derive(Debug)]
+struct Network {
+    // A bi-map between peers
+    // {uid_1: uid_2, uid_2: uid_1 ...}
+    sessions: HashMap<String, String>,
+}
+
 /// websocket connection is long running connection, it easier
 /// to handle with an actor
 #[derive(Debug)]
 struct Connection {
     hb: Instant,
-    address: net::SocketAddr
+    address: net::SocketAddr,
 }
 
 impl Actor for Connection {
@@ -44,7 +57,7 @@ impl Actor for Connection {
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Connection {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, conn: &mut Self::Context) {
         debug!("[socket] ${:?}", msg);
-        
+
         match msg {
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();
@@ -110,30 +123,47 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use actix_web::dev::Service;
-//     use actix_web::{http, test, web, App, Error};
+// async def hello_peer(self, ws):
+//     '''
+//     Exchange hello, register peer
+//     '''
+//     raddr = ws.remote_address
+//     hello = await ws.recv()
+//     hello, uid = hello.split(maxsplit=1)
+//     if hello != 'HELLO':
+//         await ws.close(code=1002, reason='invalid protocol')
+//         raise Exception("Invalid hello from {!r}".format(raddr))
+//     if not uid or uid in self.peers or uid.split() != [uid]: # no whitespace
+//         await ws.close(code=1002, reason='invalid peer uid')
+//         raise Exception("Invalid uid {!r} from {!r}".format(uid, raddr))
+//     # Send back a HELLO
+//     await ws.send('HELLO')
+//     return uid
 
-//     use super::*;
+fn greetings(
+    command: &str,
+    value: &str,
+    mut connection: ws::WebsocketContext<Connection>,
+) -> Option<String> {
+    if command != "HELLO" {
+        connection.close(Some(actix_web_actors::ws::CloseReason {
+            code: ws::CloseCode::Invalid,
+            description: Some("invalid protocol".to_string()),
+        }));
+        error!("Invalid greeting from peer {:?}", connection.address());
+        return None;
+    }
 
-//     #[actix_rt::test]
-//     async fn test_index() -> Result<(), Error> {
-//         let app = App::new().route("/", web::get().to(index));
-//         let mut app = test::init_service(app).await;
+    if value == "" {
+        connection.close(Some(actix_web_actors::ws::CloseReason {
+            code: ws::CloseCode::Invalid,
+            description: Some("invalid peer uid".to_string()),
+        }));
+        error!("Invalid uid {} from peer {:?}", value, connection.address());
+        return None;
+    }
 
-//         let req = test::TestRequest::get().uri("/").to_request();
-//         let resp = app.call(req).await.unwrap();
+    connection.text("HELLO");
 
-//         assert_eq!(resp.status(), http::StatusCode::OK);
-
-//         let response_body = match resp.response().body().as_ref() {
-//             Some(actix_web::body::Body::Bytes(bytes)) => bytes,
-//             _ => panic!("Response error"),
-//         };
-
-//         assert_eq!(response_body, r##"Hello world!"##);
-
-//         Ok(())
-//     }
-// }
+    return Some(value.to_string());
+}
