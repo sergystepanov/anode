@@ -1,7 +1,6 @@
-use actix::prelude::*;
 use actix_files as fs;
-use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
-use actix_web_actors::ws;
+use actix_web::{middleware::Logger, web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_ws::Message;
 use api::message::parse as explode;
 use log::{debug, error, info};
 use std::{
@@ -12,21 +11,57 @@ use std::{
 
 mod api;
 
-/// How often heartbeat pings are sent
-const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
-/// How long before lack of client response causes a timeout
-const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
+async fn ws(req: HttpRequest, body: web::Payload) -> Result<HttpResponse, Error> {
+    let (response, mut session, mut msg_stream) = actix_ws::handle(&req, body)?;
 
-async fn ws_index(r: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    let peer_address = r.peer_addr().unwrap();
+    let peer_address = req.peer_addr().unwrap();
     info!("[peer] {}", peer_address);
 
-    let connection = Connection {
-        hb: Instant::now(),
-        address: peer_address,
-    };
+    actix_rt::spawn(async move {
+        while let Some(Ok(msg)) = msg_stream.next().await {
+            debug!("[socket] ${:?}", msg);
 
-    return ws::start(connection, &r, stream);
+            match msg {
+                Message::Ping(bytes) => {
+                    if session.pong(&bytes).await.is_err() {
+                        return;
+                    }
+                }
+                Message::Text(s) => {
+                    let message = s.to_string();
+                    let command = explode(&message);
+
+                    match command {
+                        Some(("HELLO", _)) => {
+                            if session.text("HELLO").await.is_err() {
+                                return;
+                            }
+                        }
+                        Some(("SESSION", _)) => {
+                            if session.text("SESSION_OK").await.is_err() {
+                                return;
+                            }
+                        }
+                        Some((_, _)) => {
+                            if session.text(s).await.is_err() {
+                                return;
+                            }
+                        }
+                        None => {
+                            if session.text(s).await.is_err() {
+                                return;
+                            }
+                        }
+                    }
+                }
+                _ => break,
+            }
+        }
+
+        let _ = session.close(None).await;
+    });
+
+    Ok(response)
 }
 
 // Describes application network state, peer connections
@@ -45,82 +80,25 @@ struct Connection {
     address: net::SocketAddr,
 }
 
-impl Actor for Connection {
-    type Context = ws::WebsocketContext<Self>;
-
-    /// Method is called on actor start. We start the heartbeat process here.
-    fn started(&mut self, ctx: &mut Self::Context) {
-        self.hb(ctx);
-    }
-}
-
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Connection {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, conn: &mut Self::Context) {
-        debug!("[socket] ${:?}", msg);
-
-        match msg {
-            Ok(ws::Message::Ping(msg)) => {
-                self.hb = Instant::now();
-                conn.pong(&msg);
-            }
-            Ok(ws::Message::Pong(_)) => {
-                self.hb = Instant::now();
-            }
-            Ok(ws::Message::Text(text)) => {
-                let message = text.to_string();
-                let command = explode(&message);
-
-                match command {
-                    Some(("HELLO", _)) => conn.text("HELLO"),
-                    Some(("SESSION", _)) => conn.text("SESSION_OK"),
-                    Some((_, _)) => conn.text(text),
-                    None => conn.text(text),
-                }
-            }
-            Ok(ws::Message::Binary(bin)) => conn.binary(bin),
-            Ok(ws::Message::Close(reason)) => {
-                conn.close(reason);
-                conn.stop();
-            }
-            _ => conn.stop(),
-        }
-    }
-}
-
-impl Connection {
-    /// helper method that sends ping to client every second.
-    ///
-    /// also this method checks heartbeats from client
-    fn hb(&self, ctx: &mut <Self as Actor>::Context) {
-        ctx.run_interval(HEARTBEAT_INTERVAL, |act, conn| {
-            // check client heartbeats
-            if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
-                println!("Websocket Client heartbeat failed, disconnecting!");
-                conn.stop();
-                return;
-            }
-
-            conn.ping(b"");
-        });
-    }
-}
-
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info,info,debug");
-    env_logger::init();
+async fn main() -> Result<(), anyhow::Error> {
+    std::env::set_var(
+        "RUST_LOG",
+        "actix_server=info,actix_web=info,actix_ws=debug,info,debug",
+    );
+    pretty_env_logger::init();
 
-    HttpServer::new(|| {
+    HttpServer::new(move || {
         App::new()
-            .wrap(middleware::Logger::default())
-            // websocket endpoint
-            .service(web::resource("/ws/").route(web::get().to(ws_index)))
-            // frontend endpoint
+            .wrap(Logger::default())
+            .route("/ws/", web::get().to(ws))
             .service(fs::Files::new("/", "static/root/").index_file("index.html"))
     })
     .bind("127.0.0.1:8080")?
     .run()
-    .await
+    .await?;
+
+    Ok(())
 }
 
 // async def hello_peer(self, ws):
@@ -140,30 +118,30 @@ async fn main() -> std::io::Result<()> {
 //     await ws.send('HELLO')
 //     return uid
 
-fn greetings(
-    command: &str,
-    value: &str,
-    mut connection: ws::WebsocketContext<Connection>,
-) -> Option<String> {
-    if command != "HELLO" {
-        connection.close(Some(actix_web_actors::ws::CloseReason {
-            code: ws::CloseCode::Invalid,
-            description: Some("invalid protocol".to_string()),
-        }));
-        error!("Invalid greeting from peer {:?}", connection.address());
-        return None;
-    }
+// fn greetings(
+//     command: &str,
+//     value: &str,
+//     mut connection: ws::WebsocketContext<Connection>,
+// ) -> Option<String> {
+//     if command != "HELLO" {
+//         connection.close(Some(actix_web_actors::ws::CloseReason {
+//             code: ws::CloseCode::Invalid,
+//             description: Some("invalid protocol".to_string()),
+//         }));
+//         error!("Invalid greeting from peer {:?}", connection.address());
+//         return None;
+//     }
 
-    if value == "" {
-        connection.close(Some(actix_web_actors::ws::CloseReason {
-            code: ws::CloseCode::Invalid,
-            description: Some("invalid peer uid".to_string()),
-        }));
-        error!("Invalid uid {} from peer {:?}", value, connection.address());
-        return None;
-    }
+//     if value == "" {
+//         connection.close(Some(actix_web_actors::ws::CloseReason {
+//             code: ws::CloseCode::Invalid,
+//             description: Some("invalid peer uid".to_string()),
+//         }));
+//         error!("Invalid uid {} from peer {:?}", value, connection.address());
+//         return None;
+//     }
 
-    connection.text("HELLO");
+//     connection.text("HELLO");
 
-    return Some(value.to_string());
-}
+//     return Some(value.to_string());
+// }
